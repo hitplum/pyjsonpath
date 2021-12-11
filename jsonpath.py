@@ -288,7 +288,7 @@ class JsonPath(object):
                                 if re.match(value[1:], child[x]):
                                     result.append(child)
                     elif compare in ('>', '<', '<=', '>='):
-                        if isinstance(child[x], (int, float)) and re.search(r'^(\-)?[0-9]+(\.)?[0-9]*?$',value) and eval(f"float(child[x]) {compare} float(value)"):
+                        if isinstance(child[x], (int, float)) and re.search(r'^(\-)?[0-9]+(\.)?[0-9]*?$',value) and eval("float(child[x]) {} float(value)".format(compare)):
                             result.append(child)
                     elif eval(f"child[x] {compare} value"):
                         result.append(child)
