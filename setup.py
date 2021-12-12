@@ -8,12 +8,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='pyjsonpath',
-      version='1.0.0',
+      version='1.0.3',
       description='A Python toolkit for parsing JSON document',
       author='hitplum',
       author_email='ycx921101@163.com',
       url='https://github.com/hitplum/pyjsonpath',
-      packages=find_packages(),
+      py_modules=["pyjsonpath"],
+      # packages=['pyjsonpath'],
+      # packages=find_packages(),
       long_description=long_description,
       long_description_content_type="text/markdown",
       license="MIT",
