@@ -1,5 +1,5 @@
 # Python JsonPath
-A Python toolkit for parsing JSON document
+A Python tool that parses JSON documents using JsonPath
 
 Inspired by: https://github.com/json-path/JsonPath
 
