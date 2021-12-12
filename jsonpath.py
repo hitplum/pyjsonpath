@@ -11,16 +11,20 @@ pattern_dot = r'\.(\*)?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_filter_type = r'in|nin|subsetof|anyof|size|empty|[\!\=\>\<\~]+'
+pattern_filter_type = r'in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+'
+
 
 def math_avg(L):
     return sum(L) / len(L)
+
 
 def math_stddev(L):
     a = math_avg(L)
     return sqrt(sum([(i - a) * (i - a) for i in L]) / (len(L) - 1))
 
+
 func_dict = {'min()': min, 'max()': max, 'avg()': math_avg, 'stddev()': math_stddev, 'length()': len, 'sum()': sum}
+
 
 class JsonPath(object):
 
@@ -121,6 +125,7 @@ class JsonPath(object):
 
     def scan_parsing(self, obj, expr):
         result = []
+
         def scan(value, x=''):
             if isinstance(value, list):
                 result.append(value)
@@ -213,33 +218,36 @@ class JsonPath(object):
                 left = left.strip()
                 right = right.strip()
                 c = re.search(pattern_filter_type, s).group()
+                c = c.replace('nin', 'not in').replace('anyof', '&')
                 if left.startswith('@'):
                     right = parse_value(right)
+                    right = '0' if c == 'empty' else right
+                    c = c.replace('subsetof', '<')
                     if isinstance(right, list) and len(right) == 1:
                         right = right[0]
+                        right = eval(right)
                         res = self.controller_walk(obj, left[1:], c, right)
                         result.extend(res)
                     elif isinstance(right, str):
+                        right = eval(right)
                         res = self.controller_walk(obj, left[1:], c, right)
                         result.extend(res)
                 elif right.startswith('@'):
                     left = parse_value(left)
-                    if '<' in c:
-                        c = c.replace('<', '>')
-                    elif '>' in c:
-                        c = c.replace('>', '<')
-
+                    left = '0' if c == 'empty' else left
+                    c = c.replace('<', '>').replace('>', '<').replace('subsetof', '>')
                     if isinstance(left, list) and len(left) == 1:
                         left = left[0]
+                        left = eval(left)
                         res = self.controller_walk(obj, right[1:], c, left)
                         result.extend(res)
                     elif isinstance(left, str):
+                        left = eval(left)
                         res = self.controller_walk(obj, right[1:], c, left)
                         result.extend(res)
             else:
                 x = spt[0]
                 res = parse_value(x)
-                print(res)
                 result.extend(res)
 
             expr = expr[len(g):]
@@ -250,7 +258,6 @@ class JsonPath(object):
         if expr:
             dit = re.match(pattern_dict, expr)
             dot = re.match(pattern_dot, expr)
-            print(222, expr, obj)
             if dit:
                 g = dit.group()
                 x = g[2:-2]
@@ -280,15 +287,34 @@ class JsonPath(object):
                 if all([compare is not None,
                         value is not None]):
                     if compare == '=~' and isinstance(child[x], str):
-                        if value.startswith("/"):
-                            if value.endswith("/i"):
-                                if re.match(value[1:-3], child[x], re.I):
-                                    result.append(child)
-                            else:
-                                if re.match(value[1:], child[x]):
-                                    result.append(child)
-                    elif compare in ('>', '<', '<=', '>='):
-                        if isinstance(child[x], (int, float)) and re.search(r'^(\-)?[0-9]+(\.)?[0-9]*?$',value) and eval("float(child[x]) {} float(value)".format(compare)):
+                        if not value.startswith("/"):
+                            continue
+                        if value.endswith("/i"):
+                            if re.match(value[1:-3], child[x], re.I):
+                                result.append(child)
+                        else:
+                            if re.match(value[1:], child[x]):
+                                result.append(child)
+                    elif compare in ('>', '<', '<=', '>=', '&', 'noneof'):
+                        if type(child[x]) != type(value):
+                            continue
+
+                        a = child[x]
+                        b = value
+                        c = '&' if compare == 'noneof' else compare
+                        if isinstance(a, list):
+                            a = set(a)
+                            b = set(b)
+
+                        e = eval("a {} b".format(c))
+                        if compare == 'noneof':
+                            if isinstance(child[x], list) and not e:
+                                result.append(child)
+                        elif e:
+                            result.append(child)
+
+                    elif compare in ('size', 'empty'):
+                        if isinstance(child[x], (list, str)) and len(child[x]) == value:
                             result.append(child)
                     elif eval("child[x] {} value".format(compare)):
                         result.append(child)
@@ -296,7 +322,3 @@ class JsonPath(object):
                     result.append(child)
 
         return result
-
-if __name__ == '__main__':
-    result = re.split(pattern_filter_type, "@.price in [1, 2, 3]")
-    print(result)

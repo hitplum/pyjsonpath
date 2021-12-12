@@ -48,7 +48,7 @@ Then:
 |subsetof|left is a subset of right [?(@.sizes subsetof ['S', 'M', 'L'])]|
 |anyof|left has an intersection with right [?(@.sizes anyof ['M', 'L'])]|
 |noneof|left has no intersection with right [?(@.sizes noneof ['M', 'L'])]|
-|size|ize of left (array or string) should match right|
+|size|size of left (array or string) should match right|
 |empty|left (array or string) should be empty|
 
 - Functions
