@@ -6,11 +6,11 @@ Inspired by: https://github.com/json-path/JsonPath
 ## Quick Start
 install it using the pip command
 ```
-pip install jsonpath
+pip install pyjsonpath
 ```
 Then:
 ```
->>> from jsonpath import JsonPath
+>>> from pyjsonpath import JsonPath
 >>> obj = {"name": "jsonpath"}
 >>> JsonPath(obj, "$.name").load()
 ['jsonpath']

@@ -7,12 +7,12 @@ from setuptools import setup, find_packages
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-setup(name='jsonpath',
+setup(name='pyjsonpath',
       version='1.0.0',
       description='A Python toolkit for parsing JSON document',
       author='hitplum',
       author_email='ycx921101@163.com',
-      url='https://github.com/hitplum/jsonpath',
+      url='https://github.com/hitplum/pyjsonpath',
       packages=find_packages(),
       long_description=long_description,
       long_description_content_type="text/markdown",
