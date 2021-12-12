@@ -11,7 +11,7 @@ pattern_dot = r'\.(\*)?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_compare_type = r'[\!\=\>\<\~]+'
+pattern_filter_type = r'in|nin|subsetof|anyof|size|empty|[\!\=\>\<\~]+'
 
 def math_avg(L):
     return sum(L) / len(L)
@@ -207,12 +207,12 @@ class JsonPath(object):
         if compare:
             g = compare.group()
             s = g[3:-2]
-            spt = re.split(pattern_compare_type, s)
+            spt = re.split(pattern_filter_type, s)
             if spt and len(spt) == 2:
                 left, right = spt
                 left = left.strip()
                 right = right.strip()
-                c = re.search(pattern_compare_type, s).group()
+                c = re.search(pattern_filter_type, s).group()
                 if left.startswith('@'):
                     right = parse_value(right)
                     if isinstance(right, list) and len(right) == 1:
@@ -254,12 +254,12 @@ class JsonPath(object):
             if dit:
                 g = dit.group()
                 x = g[2:-2]
-                res = self.controller_compare(obj, x, compare, value)
+                res = self.controller_filter(obj, x, compare, value)
                 result.extend(res)
                 expr = expr[len(g):]
             elif dot:
                 x = expr[1:]
-                res = self.controller_compare(obj, x, compare, value)
+                res = self.controller_filter(obj, x, compare, value)
                 result.extend(res)
                 expr = expr[len(expr):]
 
@@ -268,7 +268,7 @@ class JsonPath(object):
 
         return result
 
-    def controller_compare(self, obj, x, compare=None, value=None):
+    def controller_filter(self, obj, x, compare=None, value=None):
         result = []
         for item in obj:
             if not isinstance(item, list):
@@ -290,9 +290,13 @@ class JsonPath(object):
                     elif compare in ('>', '<', '<=', '>='):
                         if isinstance(child[x], (int, float)) and re.search(r'^(\-)?[0-9]+(\.)?[0-9]*?$',value) and eval("float(child[x]) {} float(value)".format(compare)):
                             result.append(child)
-                    elif eval(f"child[x] {compare} value"):
+                    elif eval("child[x] {} value".format(compare)):
                         result.append(child)
                 else:
                     result.append(child)
 
         return result
+
+if __name__ == '__main__':
+    result = re.split(pattern_filter_type, "@.price in [1, 2, 3]")
+    print(result)
