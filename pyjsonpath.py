@@ -256,24 +256,16 @@ class JsonPath(object):
     def controller_walk(self, obj, expr, compare=None, value=None):
         result = []
         if expr:
-            dit = re.match(pattern_dict, expr)
-            dot = re.match(pattern_dot, expr)
-            if dit:
-                g = dit.group()
-                x = g[2:-2]
-                res = self.controller_filter(obj, x, compare, value)
-                result.extend(res)
-                expr = expr[len(g):]
-            elif dot:
-                x = expr[1:]
-                res = self.controller_filter(obj, x, compare, value)
-                result.extend(res)
-                expr = expr[len(expr):]
-
+            res = self.controller_filter(obj, expr, compare, value)
+            result.extend(res)
+            expr = expr[len(expr):]
             s = deepcopy(result)
             self.controller_walk(s, expr)
 
         return result
+
+    def current_type(self, s):
+        return 'number' if type(s) in (float, int) else type(s)
 
     def controller_filter(self, obj, x, compare=None, value=None):
         result = []
@@ -281,42 +273,47 @@ class JsonPath(object):
             if not isinstance(item, list):
                 continue
             for child in item:
-                if not all([isinstance(child, dict),
-                            x in child]):
+                if not isinstance(child, dict):
                     continue
+
+                res = []
+                self.start_parsing([child], x, res)
+                if not res:
+                    continue
+
+                item_value = res[0]
                 if all([compare is not None,
                         value is not None]):
-                    if compare == '=~' and isinstance(child[x], str):
+                    if compare == '=~' and isinstance(item_value, str):
                         if not value.startswith("/"):
                             continue
                         if value.endswith("/i"):
-                            if re.match(value[1:-3], child[x], re.I):
+                            if re.match(value[1:-3], item_value, re.I):
                                 result.append(child)
                         else:
-                            if re.match(value[1:], child[x]):
+                            if re.match(value[1:], item_value):
                                 result.append(child)
                     elif compare in ('>', '<', '<=', '>=', '&', 'noneof'):
-                        if type(child[x]) != type(value):
+                        if self.current_type(item_value) != self.current_type(value):
                             continue
 
-                        a = child[x]
                         b = value
                         c = '&' if compare == 'noneof' else compare
-                        if isinstance(a, list):
-                            a = set(a)
+                        if isinstance(item_value, list):
+                            item_value = set(item_value)
                             b = set(b)
 
-                        e = eval("a {} b".format(c))
+                        e = eval("item_value {} b".format(c))
                         if compare == 'noneof':
-                            if isinstance(child[x], list) and not e:
+                            if isinstance(item_value, list) and not e:
                                 result.append(child)
                         elif e:
                             result.append(child)
 
                     elif compare in ('size', 'empty'):
-                        if isinstance(child[x], (list, str)) and len(child[x]) == value:
+                        if isinstance(item_value, (list, str)) and len(item_value) == value:
                             result.append(child)
-                    elif eval("child[x] {} value".format(compare)):
+                    elif eval("item_value {} value".format(compare)):
                         result.append(child)
                 else:
                     result.append(child)
