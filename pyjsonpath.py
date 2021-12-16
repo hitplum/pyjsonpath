@@ -197,7 +197,7 @@ class JsonPath(object):
 
     def controller_parsing(self, obj, expr):
 
-        def parse_value(value):
+        def parse_value(value, compare):
             if value.startswith('@'):
                 return self.controller_walk(obj, x[1:])
             elif value.startswith('$'):
@@ -205,7 +205,7 @@ class JsonPath(object):
                 self.start_parsing(self.obj, value, res)
                 return res
             else:
-                return value
+                return value if compare == '=~' else eval(value)
 
         result = []
         compare = re.match(pattern_controller_type, expr)
@@ -220,34 +220,36 @@ class JsonPath(object):
                 c = re.search(pattern_filter_type, s).group()
                 c = c.replace('nin', 'not in').replace('anyof', '&')
                 if left.startswith('@'):
-                    right = parse_value(right)
-                    right = '0' if c == 'empty' else right
                     c = c.replace('subsetof', '<')
+                    right = parse_value(right, c)
+                    right = 0 if c == 'empty' else right
                     if isinstance(right, list) and len(right) == 1:
                         right = right[0]
-                        right = eval(right)
                         res = self.controller_walk(obj, left[1:], c, right)
                         result.extend(res)
-                    elif isinstance(right, str):
-                        right = eval(right)
+                    elif c == '=~':
+                        res = self.controller_walk(obj, left[1:], c, right)
+                        result.extend(res)
+                    else:
                         res = self.controller_walk(obj, left[1:], c, right)
                         result.extend(res)
                 elif right.startswith('@'):
-                    left = parse_value(left)
-                    left = '0' if c == 'empty' else left
                     c = c.replace('<', '>').replace('>', '<').replace('subsetof', '>')
+                    left = parse_value(left, c)
+                    left = '0' if c == 'empty' else left
                     if isinstance(left, list) and len(left) == 1:
                         left = left[0]
-                        left = eval(left)
                         res = self.controller_walk(obj, right[1:], c, left)
                         result.extend(res)
-                    elif isinstance(left, str):
-                        left = eval(left)
+                    elif c == '=~':
+                        res = self.controller_walk(obj, right[1:], c, left)
+                        result.extend(res)
+                    else:
                         res = self.controller_walk(obj, right[1:], c, left)
                         result.extend(res)
             else:
                 x = spt[0]
-                res = parse_value(x)
+                res = parse_value(x, '')
                 result.extend(res)
 
             expr = expr[len(g):]
