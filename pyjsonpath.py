@@ -11,7 +11,7 @@ pattern_dot = r'\.(\*)?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_filter_type = r'in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+'
+pattern_filter_type = r' in | nin | subsetof | anyof | noneof | size | empty | [\!\=\>\<\~]+ '
 
 
 def math_avg(L):
@@ -213,6 +213,7 @@ class JsonPath(object):
             g = compare.group()
             s = g[3:-2]
             spt = re.split(pattern_filter_type, s)
+            print('spt', spt, s)
             if spt and len(spt) == 2:
                 left, right = spt
                 left = left.strip()
@@ -270,6 +271,7 @@ class JsonPath(object):
         return 'number' if type(s) in (float, int) else type(s)
 
     def controller_filter(self, obj, x, compare=None, value=None):
+        print('compare', compare)
         result = []
         for item in obj:
             if not isinstance(item, list):
@@ -286,6 +288,7 @@ class JsonPath(object):
                 item_value = res[0]
                 if all([compare is not None,
                         value is not None]):
+                    print("item_value", item_value, value, "item_value {} value".format(compare))
                     if compare == '=~' and isinstance(item_value, str):
                         if not value.startswith("/"):
                             continue
@@ -311,7 +314,6 @@ class JsonPath(object):
                                 result.append(child)
                         elif e:
                             result.append(child)
-
                     elif compare in ('size', 'empty'):
                         if isinstance(item_value, (list, str)) and len(item_value) == value:
                             result.append(child)
