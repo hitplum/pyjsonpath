@@ -11,20 +11,20 @@ pattern_dot = r'\.(\*)?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_filter_type = r' in | nin | subsetof | anyof | noneof | size | empty | [\!\=\>\<\~]+ '
+pattern_filter_type = r'\s(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~])\s?'
 
 
 def math_avg(L):
     return sum(L) / len(L)
 
-
 def math_stddev(L):
     a = math_avg(L)
     return sqrt(sum([(i - a) * (i - a) for i in L]) / (len(L) - 1))
 
-
 func_dict = {'min()': min, 'max()': max, 'avg()': math_avg, 'stddev()': math_stddev, 'length()': len, 'sum()': sum}
 
+class UnExpectJsonPathError(Exception):
+    pass
 
 class JsonPath(object):
 
@@ -39,7 +39,7 @@ class JsonPath(object):
         result = []
         try:
             self.start_parsing(self.obj, self.expr, result)
-        except KeyError:
+        except (KeyError, UnExpectJsonPathError):
             fmt = traceback.format_exc()
             print(fmt)
         return result
@@ -195,131 +195,106 @@ class JsonPath(object):
             expr = expr[len(g):]
         return result, expr
 
+    def parse_value(self, value, compare):
+        if value.startswith('$'):
+            res = []
+            self.start_parsing(self.obj, value, res)
+            return res
+        else:
+            print('value', value)
+            return value if compare == '=~' else eval(value)
+
+    def normalize(self, old, new):
+        old = old.strip()
+        if not old:
+            return new
+        if old.startswith("&&"):
+            new += f"and "
+            old = old[3:]
+        elif old.startswith("||"):
+            new += f"or "
+            old = old[3:]
+
+        expr = "(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))\s?(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~])?(\s(true|false|null|\d+\.?\d*|\/.*?/i|'.*?'))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?')\s(in|nin|subsetof|anyof|noneof|[\!\=\>\<])\s@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
+        m = re.match(expr, old)
+        if m:
+            s = m.group()
+            spt = re.split(pattern_filter_type, s)
+            if spt and len(spt) == 3:
+                left, compare, right = spt
+                compare = compare.replace('nin', 'not in')
+                if left.startswith('@'):
+                    if right in ('True', 'False', 'null'):
+                        right = right.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+                    # right = self.parse_value(right, compare)
+                    s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", left)
+                    if compare in ('empty', 'size'):
+                        right = 0 if compare == 'empty' else right
+                        new += f"len(child{s_[1:]}) == {right} "
+                    elif compare == "subsetof":
+                        new += f"set(child{s_[1:]}) < set({right}) "
+                    elif compare == "anyof":
+                        new += f"set(child{s_[1:]}) & set({right}) "
+                    elif compare == "noneof":
+                        new += f"not set(child{s_[1:]}) & set({right}) "
+                    elif compare == "=~":
+                        if not isinstance(right, str) or not right.startswith("/") or not right.endswith("/i"):
+                            raise UnExpectJsonPathError('Ungrammatical JsonPath')
+                        new += f"re.match('{right[1:-3]}', child{s_[1:]}, re.I) "
+                    else:
+                        new += f"child{s_[1:]} {compare} {right} "
+                elif right.startswith('@'):
+                    if left in ('True', 'False', 'null'):
+                        left = left.replace('true', 'True').replace('false', 'False').replace('null', 'None')
+                    # left = self.parse_value(left, compare)
+                    s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", right)
+                    if compare in ('empty', 'size', '=~'):
+                        raise Exception('不符合语法的JsonPath')
+                    elif compare == "subsetof":
+                        new += f"set({left}) < set(child{s_[1:]}) "
+                    elif compare == "anyof":
+                        new += f"set({left}) & set(child{s_[1:]}) "
+                    elif compare == "noneof":
+                        new += f"not set({left}) & set(child{s_[1:]}) "
+                    else:
+                        new += f"{left} {compare} child{s_[1:]} "
+            elif s.startswith(("!@", "@")):
+                s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", s)
+                new += f"not child{s_[2:]} " if s.startswith("!@") else f"child{s_[1:]} "
+
+            return self.normalize(old[len(s):], new)
+
+        raise UnExpectJsonPathError('Ungrammatical JsonPath')
+
+    def start_filtering(self, obj, expr):
+        result = []
+        expr = self.normalize(expr, '')
+        if not expr:
+            return result
+
+        for item in obj:
+            if not isinstance(item, list):
+                continue
+
+            for child in item:
+                try:
+                    value = eval(expr)
+                except NameError:
+                    continue
+
+                if value:
+                    result.append(child)
+
+        return result
+
     def controller_parsing(self, obj, expr):
-
-        def parse_value(value, compare):
-            if value.startswith('@'):
-                return self.controller_walk(obj, x[1:])
-            elif value.startswith('$'):
-                res = []
-                self.start_parsing(self.obj, value, res)
-                return res
-            else:
-                return value if compare == '=~' else eval(value)
-
         result = []
         compare = re.match(pattern_controller_type, expr)
         if compare:
             g = compare.group()
             s = g[3:-2]
-            spt = re.split(pattern_filter_type, s)
-            print('spt', spt, s)
-            if spt and len(spt) == 2:
-                left, right = spt
-                left = left.strip()
-                right = right.strip()
-                c = re.search(pattern_filter_type, s).group()
-                c = c.replace('nin', 'not in').replace('anyof', '&')
-                if left.startswith('@'):
-                    c = c.replace('subsetof', '<')
-                    right = parse_value(right, c)
-                    right = 0 if c == 'empty' else right
-                    if isinstance(right, list) and len(right) == 1:
-                        right = right[0]
-                        res = self.controller_walk(obj, left[1:], c, right)
-                        result.extend(res)
-                    elif c == '=~':
-                        res = self.controller_walk(obj, left[1:], c, right)
-                        result.extend(res)
-                    else:
-                        res = self.controller_walk(obj, left[1:], c, right)
-                        result.extend(res)
-                elif right.startswith('@'):
-                    c = c.replace('<', '>').replace('>', '<').replace('subsetof', '>')
-                    left = parse_value(left, c)
-                    left = '0' if c == 'empty' else left
-                    if isinstance(left, list) and len(left) == 1:
-                        left = left[0]
-                        res = self.controller_walk(obj, right[1:], c, left)
-                        result.extend(res)
-                    elif c == '=~':
-                        res = self.controller_walk(obj, right[1:], c, left)
-                        result.extend(res)
-                    else:
-                        res = self.controller_walk(obj, right[1:], c, left)
-                        result.extend(res)
-            else:
-                x = spt[0]
-                res = parse_value(x, '')
-                result.extend(res)
-
-            expr = expr[len(g):]
-        return result, expr
-
-    def controller_walk(self, obj, expr, compare=None, value=None):
-        result = []
-        if expr:
-            res = self.controller_filter(obj, expr, compare, value)
+            res = self.start_filtering(obj, s)
             result.extend(res)
-            expr = expr[len(expr):]
-            s = deepcopy(result)
-            self.controller_walk(s, expr)
+            expr = expr[len(g):]
 
-        return result
-
-    def current_type(self, s):
-        return 'number' if type(s) in (float, int) else type(s)
-
-    def controller_filter(self, obj, x, compare=None, value=None):
-        print('compare', compare)
-        result = []
-        for item in obj:
-            if not isinstance(item, list):
-                continue
-            for child in item:
-                if not isinstance(child, dict):
-                    continue
-
-                res = []
-                self.start_parsing([child], x, res)
-                if not res:
-                    continue
-
-                item_value = res[0]
-                if all([compare is not None,
-                        value is not None]):
-                    print("item_value", item_value, value, "item_value {} value".format(compare))
-                    if compare == '=~' and isinstance(item_value, str):
-                        if not value.startswith("/"):
-                            continue
-                        if value.endswith("/i"):
-                            if re.match(value[1:-3], item_value, re.I):
-                                result.append(child)
-                        else:
-                            if re.match(value[1:], item_value):
-                                result.append(child)
-                    elif compare in ('>', '<', '<=', '>=', '&', 'noneof'):
-                        if self.current_type(item_value) != self.current_type(value):
-                            continue
-
-                        b = value
-                        c = '&' if compare == 'noneof' else compare
-                        if isinstance(item_value, list):
-                            item_value = set(item_value)
-                            b = set(b)
-
-                        e = eval("item_value {} b".format(c))
-                        if compare == 'noneof':
-                            if isinstance(item_value, list) and not e:
-                                result.append(child)
-                        elif e:
-                            result.append(child)
-                    elif compare in ('size', 'empty'):
-                        if isinstance(item_value, (list, str)) and len(item_value) == value:
-                            result.append(child)
-                    elif eval("item_value {} value".format(compare)):
-                        result.append(child)
-                else:
-                    result.append(child)
-
-        return result
+        return result, expr
