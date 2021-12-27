@@ -298,3 +298,4 @@ class JsonPath(object):
             expr = expr[len(g):]
 
         return result, expr
+    
