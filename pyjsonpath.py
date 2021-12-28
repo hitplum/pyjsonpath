@@ -11,7 +11,7 @@ pattern_dot = r'\.(\*)?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_filter_type = r'\s(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~])\s?'
+pattern_filter_type = r'\s(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+)\s?'
 
 
 def math_avg(L):
@@ -215,7 +215,7 @@ class JsonPath(object):
             new += f"or "
             old = old[3:]
 
-        expr = "(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))\s?(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~])?(\s(true|false|null|\d+\.?\d*|\/.*?/i|'.*?'))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?')\s(in|nin|subsetof|anyof|noneof|[\!\=\>\<])\s@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
+        expr = "(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))\s?(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+)?(\s(true|false|null|\d+\.?\d*|\/.*?/i|'.*?'))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?')\s(in|nin|subsetof|anyof|noneof|[\!\=\>\<]+)\s@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
         m = re.match(expr, old)
         if m:
             s = m.group()
