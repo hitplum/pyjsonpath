@@ -1,17 +1,18 @@
-# -*- coding: utf-8 -*-
+
 import re
 import traceback
 from math import sqrt
 from copy import deepcopy
 
+
 pattern_dict = r'\[("|\').+?("|\')\]'
 pattern_index = r'\[[0-9]+[, 0-9]*\]'
 pattern_split = r'\[((\*)|((-)?[0-9]*:(-)?[0-9]*))\]'
-pattern_dot = r'\.(\*)?'
+pattern_dot = r'\.\*?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
 pattern_normal_type = r'[\-\_0-9a-zA-Z\u4e00-\u9fa5]+(\(\))?'
 pattern_controller_type = r'\[\?\(.+?\)\]'
-pattern_filter_type = r'\s(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+)\s?'
+pattern_filter_type = r'\sin\s|\snin\s|\ssubsetof\s|\sanyof\s|\snoneof\s|\ssize\s|\sempty|\s?[\!\=\>\<\~]+\s?'
 
 
 def math_avg(L):
@@ -60,6 +61,11 @@ class JsonPath(object):
                 result.extend(obj)
                 self.start_parsing(obj, expr, result)
             elif expr.startswith(".."):
+                obj, expr = self.scan_parsing(obj, expr)
+                result.extend(obj)
+                self.start_parsing(obj, expr, result)
+            elif expr.startswith(".[?"):
+                expr = expr.replace(".[?", "..[?")
                 obj, expr = self.scan_parsing(obj, expr)
                 result.extend(obj)
                 self.start_parsing(obj, expr, result)
@@ -125,7 +131,6 @@ class JsonPath(object):
 
     def scan_parsing(self, obj, expr):
         result = []
-
         def scan(value, x=''):
             if isinstance(value, list):
                 result.append(value)
@@ -169,6 +174,7 @@ class JsonPath(object):
                         result.extend(item)
                     elif isinstance(item, dict):
                         result.extend(list(item.values()))
+
             expr = expr[len(g):]
         return result, expr
 
@@ -201,7 +207,6 @@ class JsonPath(object):
             self.start_parsing(self.obj, value, res)
             return res
         else:
-            print('value', value)
             return value if compare == '=~' else eval(value)
 
     def normalize(self, old, new):
@@ -215,28 +220,28 @@ class JsonPath(object):
             new += f"or "
             old = old[3:]
 
-        expr = "(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))\s?(in|nin|subsetof|anyof|noneof|size|empty|[\!\=\>\<\~]+)?(\s(true|false|null|\d+\.?\d*|\/.*?/i|'.*?'))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?')\s(in|nin|subsetof|anyof|noneof|[\!\=\>\<]+)\s@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
+        expr = f"(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+({pattern_filter_type})?((true|false|null|\d+\.?\d*|\/.*?/i|'.*?'|\[.*?\]|$((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?'|\[.*?\]|$((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+)({pattern_filter_type})@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
         m = re.match(expr, old)
         if m:
             s = m.group()
             spt = re.split(pattern_filter_type, s)
-            if spt and len(spt) == 3:
-                left, compare, right = spt
+            if spt and len(spt) == 2:
+                left, right = spt
+                compare = s[len(left):-len(right)].strip()
                 compare = compare.replace('nin', 'not in')
                 if left.startswith('@'):
                     if right in ('True', 'False', 'null'):
                         right = right.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-                    # right = self.parse_value(right, compare)
                     s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", left)
                     if compare in ('empty', 'size'):
                         right = 0 if compare == 'empty' else right
                         new += f"len(child{s_[1:]}) == {right} "
                     elif compare == "subsetof":
-                        new += f"set(child{s_[1:]}) < set({right}) "
+                        new += f"(set(child{s_[1:]}).issubset(set({right})) if isinstance(child{s_[1:]}, list) else False) "
                     elif compare == "anyof":
-                        new += f"set(child{s_[1:]}) & set({right}) "
+                        new += f"(set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else False) "
                     elif compare == "noneof":
-                        new += f"not set(child{s_[1:]}) & set({right}) "
+                        new += f"(not set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else True) "
                     elif compare == "=~":
                         if not isinstance(right, str) or not right.startswith("/") or not right.endswith("/i"):
                             raise UnExpectJsonPathError('Ungrammatical JsonPath')
@@ -246,7 +251,6 @@ class JsonPath(object):
                 elif right.startswith('@'):
                     if left in ('True', 'False', 'null'):
                         left = left.replace('true', 'True').replace('false', 'False').replace('null', 'None')
-                    # left = self.parse_value(left, compare)
                     s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", right)
                     if compare in ('empty', 'size', '=~'):
                         raise Exception('不符合语法的JsonPath')
@@ -279,7 +283,7 @@ class JsonPath(object):
             for child in item:
                 try:
                     value = eval(expr)
-                except NameError:
+                except Exception:
                     continue
 
                 if value:
@@ -298,4 +302,3 @@ class JsonPath(object):
             expr = expr[len(g):]
 
         return result, expr
-    
