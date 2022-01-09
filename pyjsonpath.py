@@ -209,66 +209,66 @@ class JsonPath(object):
         else:
             return value if compare == '=~' else eval(value)
 
-    def normalize(self, old, new):
-        old = old.strip()
-        if not old:
-            return new
-        if old.startswith("&&"):
-            new += f"and "
-            old = old[3:]
-        elif old.startswith("||"):
-            new += f"or "
-            old = old[3:]
-
+    def normalize(self, value, index=0, replaced_dict=None):   # todo
+        replaced_dict = replaced_dict if replaced_dict else {}
         expr = f"(@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+({pattern_filter_type})?((true|false|null|\d+\.?\d*|\/.*?/i|'.*?'|\[.*?\]|$((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+))?)|((true|false|null|\d+\.?\d*|\/.*?/i|'.*?'|\[.*?\]|$((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\]))+)({pattern_filter_type})@((\.[_0-9a-zA-Z\u4e00-\u9fa5]+)|(\[(\"|').+?(\"|')\])))"
-        m = re.match(expr, old)
+        m = re.search(expr, value)
         if m:
+            span = m.span()
             s = m.group()
+            new_s = ''
             spt = re.split(pattern_filter_type, s)
             if spt and len(spt) == 2:
                 left, right = spt
-                compare = s[len(left):-len(right)].strip()
+                compare = s[len(left):-len(right) if len(right) else len(s)].strip()        # todo
                 compare = compare.replace('nin', 'not in')
                 if left.startswith('@'):
-                    if right in ('True', 'False', 'null'):
+                    if right in ('true', 'false', 'null'):
                         right = right.replace('true', 'True').replace('false', 'False').replace('null', 'None')
                     s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", left)
                     if compare in ('empty', 'size'):
                         right = 0 if compare == 'empty' else right
-                        new += f"len(child{s_[1:]}) == {right} "
+                        new_s = f"len(child{s_[1:]}) == {right}"
                     elif compare == "subsetof":
-                        new += f"(set(child{s_[1:]}).issubset(set({right})) if isinstance(child{s_[1:]}, list) else False) "
+                        new_s = f"(set(child{s_[1:]}).issubset(set({right})) if isinstance(child{s_[1:]}, list) else False)"
                     elif compare == "anyof":
-                        new += f"(set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else False) "
+                        new_s = f"(set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else False)"
                     elif compare == "noneof":
-                        new += f"(not set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else True) "
+                        new_s = f"(not set(child{s_[1:]}) & set({right}) if isinstance(child{s_[1:]}, list) else True)"
                     elif compare == "=~":
                         if not isinstance(right, str) or not right.startswith("/") or not right.endswith("/i"):
                             raise UnExpectJsonPathError('Ungrammatical JsonPath')
-                        new += f"re.match('{right[1:-3]}', child{s_[1:]}, re.I) "
+                        new_s = f"re.match('{right[1:-3]}', child{s_[1:]}, re.I)"
                     else:
-                        new += f"child{s_[1:]} {compare} {right} "
+                        new_s = f"child{s_[1:]} {compare} {right}"
                 elif right.startswith('@'):
-                    if left in ('True', 'False', 'null'):
+                    if left in ('true', 'false', 'null'):
                         left = left.replace('true', 'True').replace('false', 'False').replace('null', 'None')
                     s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", right)
                     if compare in ('empty', 'size', '=~'):
                         raise Exception('不符合语法的JsonPath')
                     elif compare == "subsetof":
-                        new += f"set({left}) < set(child{s_[1:]}) "
+                        new_s = f"set({left}) < set(child{s_[1:]})"
                     elif compare == "anyof":
-                        new += f"set({left}) & set(child{s_[1:]}) "
+                        new_s = f"set({left}) & set(child{s_[1:]})"
                     elif compare == "noneof":
-                        new += f"not set({left}) & set(child{s_[1:]}) "
+                        new_s = f"not set({left}) & set(child{s_[1:]})"
                     else:
-                        new += f"{left} {compare} child{s_[1:]} "
+                        new_s = f"{left} {compare} child{s_[1:]}"
             elif s.startswith(("!@", "@")):
                 s_ = re.sub(r"\.([_0-9a-zA-Z\u4e00-\u9fa5]+)", r"['\1']", s)
-                new += f"not child{s_[2:]} " if s.startswith("!@") else f"child{s_[1:]} "
+                new_s = f"not child{s_[2:]}" if s.startswith("!@") else f"child{s_[1:]}"
 
-            return self.normalize(old[len(s):], new)
-
-        raise UnExpectJsonPathError('Ungrammatical JsonPath')
+            index += 1
+            k = f"param_{index}"
+            v = new_s if new_s else s
+            value = value[:span[0]] + '{' + k +'}' + value[span[1]:]
+            replaced_dict[k] = v
+            return self.normalize(value, index, replaced_dict)
+        else:
+            value = value.replace("&&", "and").replace("||", "or")
+            value = value.format(**replaced_dict) if replaced_dict else value
+            return value
 
     def start_filtering(self, obj, expr):
         result = []
