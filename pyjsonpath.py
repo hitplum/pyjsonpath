@@ -272,7 +272,7 @@ class JsonPath(object):
 
     def start_filtering(self, obj, expr):
         result = []
-        expr = self.normalize(expr, '')
+        expr = self.normalize(expr, index=0, replaced_dict=None)
         if not expr:
             return result
 
