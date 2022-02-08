@@ -40,7 +40,7 @@ class JsonPath(object):
         result = []
         try:
             self.start_parsing(self.obj, self.expr, result)
-        except (KeyError, UnExpectJsonPathError):
+        except (KeyError, IndexError, ValueError, UnExpectJsonPathError):
             fmt = traceback.format_exc()
             print(fmt)
         return result
@@ -189,9 +189,12 @@ class JsonPath(object):
                 elif isinstance(item, list):
                     if re.search(r"^[0-9]+$", g):
                         result.append(obj[int(g)])
+                    elif g == 'length()':
+                        f = func_dict[g]
+                        result.append(f(item))
                     elif all([
                         all([isinstance(i, (int, float)) for i in item]),
-                        g in ('min()', 'max()', 'avg()', 'stddev()', 'length()', 'sum()')
+                        g in ('min()', 'max()', 'avg()', 'stddev()', 'sum()')
                     ]):
                         f = func_dict[g]
                         result.append(f(item))
