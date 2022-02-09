@@ -65,7 +65,12 @@ class JsonPath(object):
                 result.extend(obj)
                 self.start_parsing(obj, expr, result)
             elif expr.startswith(".[?"):
-                expr = expr.replace(".[?", "..[?")
+                expr = "..[?" + expr[3:]
+                obj, expr = self.scan_parsing(obj, expr)
+                result.extend(obj)
+                self.start_parsing(obj, expr, result)
+            elif expr.startswith(".["):
+                expr = "..[" + expr[2:]
                 obj, expr = self.scan_parsing(obj, expr)
                 result.extend(obj)
                 self.start_parsing(obj, expr, result)
@@ -140,7 +145,7 @@ class JsonPath(object):
                 result.append(value)
                 for item in value.values():
                     scan(item, x)
-            elif x == '*' or x == '[*]':
+            elif x == '*' or x == '[*]' or value is None:
                 result.append(value)
 
         g = re.match(pattern_double_dot, expr)
