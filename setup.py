@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='pyjsonpath',
-      version='1.1.2',
+      version='1.1.4',
       description='A Python toolkit for parsing JSON document',
       author='hitplum',
       author_email='ycx921101@163.com',

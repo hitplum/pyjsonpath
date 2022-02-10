@@ -40,7 +40,7 @@ class JsonPath(object):
         result = []
         try:
             self.start_parsing(self.obj, self.expr, result)
-        except (KeyError, IndexError, ValueError, UnExpectJsonPathError):
+        except (KeyError, IndexError, ValueError, RecursionError, UnExpectJsonPathError):
             fmt = traceback.format_exc()
             print(fmt)
         return result
