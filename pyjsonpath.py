@@ -284,14 +284,16 @@ class JsonPath(object):
         if not expr:
             return result
 
-        if len(obj) == 1 and isinstance(obj[0], list):
-            for child in obj[0]:
-                try:
-                    value = eval(expr)
-                except Exception:
-                    continue
-                if value:
-                    result.append(child)
+        if all([isinstance(i, list) for i in obj]):
+            for item in obj:
+                for child in item:
+                    try:
+
+                        value = eval(expr)
+                    except Exception:
+                        continue
+                    if value:
+                        result.append(child)
         else:
             for item in obj:
                 if isinstance(item, dict):
