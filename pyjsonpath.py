@@ -284,25 +284,22 @@ class JsonPath(object):
         if not expr:
             return result
 
-        for item in obj:
-            value = None
-            if isinstance(item, dict):
-                child = deepcopy(item)
+        if len(obj) == 1 and isinstance(obj[0], list):
+            for child in obj[0]:
                 try:
                     value = eval(expr)
                 except Exception:
                     continue
-
                 if value:
                     result.append(child)
-
-            elif isinstance(item, list):
-                for child in item:
+        else:
+            for item in obj:
+                if isinstance(item, dict):
+                    child = deepcopy(item)
                     try:
                         value = eval(expr)
                     except Exception:
                         continue
-
                     if value:
                         result.append(child)
 
