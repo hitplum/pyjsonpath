@@ -109,8 +109,9 @@ class JsonPath(object):
             for item in obj:
                 if isinstance(item, list):
                     for index in index_list:
-                        value = item[int(index)]
-                        result.append(value)
+                        if index < len(item):
+                            value = item[int(index)]
+                            result.append(value)
             expr = expr[len(g):]
         elif spt:
             g = spt.group()
@@ -155,16 +156,25 @@ class JsonPath(object):
             g = g.group()
             x = g[2:]
             if not x:
-                scan(obj[0])
+                if all([isinstance(i, list) for i in obj]):
+                    for item in obj:
+                        result.append(item)
+                        for index in item:
+                            scan(index, x)
+                else:
+                    for item in obj:
+                        scan(item, x)
             elif x == '*' or x == '[*]':
-                if isinstance(obj[0], dict):
-                    for item in obj[0].values():
-                        scan(item, x)
-                elif isinstance(obj[0], list):
-                    for item in obj[0]:
-                        scan(item, x)
+                for xx in obj:
+                    if isinstance(xx, dict):
+                        for item in xx.values():
+                            scan(item, x)
+                    elif isinstance(xx, list):
+                        for item in xx:
+                            scan(item, x)
 
             expr = expr[len(g):]
+
         return result, expr
 
     def dot_parsing(self, obj, expr):
@@ -290,7 +300,6 @@ class JsonPath(object):
             for item in obj:
                 for child in item:
                     try:
-
                         value = eval(expr)
                     except Exception:
                         continue
