@@ -43,8 +43,9 @@ class JsonPath(object):
         except (KeyError, IndexError, ValueError, UnExpectJsonPathError):
             fmt = traceback.format_exc()
             print(fmt)
+            return []
         except RecursionError:
-            raise UnExpectJsonPathError('Ungrammatical JsonPath')
+            return []
         return result
 
     def start_parsing(self, obj, expr, result):
