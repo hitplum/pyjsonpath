@@ -34,12 +34,13 @@ class JsonPath(object):
         self.expr = expr
 
     def load(self):
-        if not self.expr.startswith('$'):
+        expr = self.expr.strip()
+        if not expr.startswith('$'):
             raise ValueError("'expr' is not a parsable JsonPath format")
 
         result = []
         try:
-            self.start_parsing(self.obj, self.expr, result)
+            self.start_parsing(self.obj, expr, result)
         except (KeyError, IndexError, ValueError, UnExpectJsonPathError):
             fmt = traceback.format_exc()
             print(fmt)
