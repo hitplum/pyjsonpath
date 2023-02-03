@@ -37,7 +37,7 @@ obj = {
     },
     "expensive": 10
 }
-expr = "$..[?(@.category == 'fiction' && @.author == 'J. R. R. Tolkien')]"
+expr = "$.store.book[1,3]"
 
 
 from pyjsonpath import JsonPath

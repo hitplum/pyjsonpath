@@ -7,6 +7,7 @@ from copy import deepcopy
 
 pattern_dict = r'\[("|\').+?("|\')\]'
 pattern_index = r'\[[0-9]+[, 0-9]*\]'
+pattern_tuple_keys = r'\[[0-9a-zA-Z_]+[, 0-9a-zA-Z_]*\]'
 pattern_split = r'\[((\*)|((-)?[0-9]*:(-)?[0-9]*))\]'
 pattern_dot = r'\.\*?'
 pattern_double_dot = r'\.\.((\*)|(\[\*\]))?'
@@ -96,7 +97,9 @@ class JsonPath(object):
         result = []
         dit = re.match(pattern_dict, expr)
         idx = re.match(pattern_index, expr)
+        tpx = re.match(pattern_tuple_keys, expr)
         spt = re.match(pattern_split, expr)
+        # print(111, expr, tpx)
         if dit:
             g = dit.group()
             key = g[2:-2]
@@ -114,6 +117,15 @@ class JsonPath(object):
                         if index < len(item):
                             value = item[int(index)]
                             result.append(value)
+            expr = expr[len(g):]
+        elif tpx:
+            g = tpx.group()
+            keys = g[1:-1].split(',')
+            for key in keys:
+                key = key.strip()
+                for item in obj:
+                    if isinstance(item, dict) and key in item:
+                        result.append(item[key])
             expr = expr[len(g):]
         elif spt:
             g = spt.group()
